@@ -1,0 +1,179 @@
+---
+title: 'Juvenile snowshoe hares counts and sizes: exploratory report'
+author: "By : Narjes Mathlouthi"  
+date: "11/3/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE, message=FALSE, Warning = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(effsize)
+library(broom)
+library(ggbeeswarm)
+library(kableExtra)
+library(here)
+library(janitor)
+library(lubridate)
+
+```
+
+### 1. Overview
+
+This report provides an exploratory overview of the .... of juvenile snowshoe hares observed in Bonanza Creek from 1998-2018. (Kielland et al. 2017). 
+
+*Note: moving forward we'll work on introductions that motivate the work (e.g. "What's the problem & why does this matter?") but for now a cursory overview of what's included is fine...*
+
+**Citation** Kielland, K., F.S. Chapin, R.W. Ruess, and Bonanza Creek LTER. 2017. Snowshoe hare physical data in Bonanza Creek Experimental Forest: 1999-Present ver 22. Environmental Data Initiative. https://doi.org/10.6073/pasta/03dce4856d79b91557d8e6ce2cbcdc14 (Accessed 2021-11-08).
+
+
+```{r, include=FALSE, message=FALSE, Warning = FALSE}
+bonanza_hares <- read_csv(here("data", "bonanza_hares.csv"))
+bonanza_clean <- bonanza_hares %>% 
+  mutate(date = mdy(date))  %>% 
+  mutate(month = month(date)) %>% 
+  mutate(day = day(date)) %>% 
+  mutate(year= year(date)) %>% 
+  rename (weight_g = weight)
+```
+
+
+### 2. Data and methods
+
+Snowshoe hares are a 'keystone' prey species (structural size) measurements were collected and made available by Knut Kielland and colleagues at Bonanza Creek Long Term Ecological Research (LTER) in Alaska at 5 locales in the Tanana valley, from Tok in the east to Clear in the west from 1999 to 2002 
+
+(2014) in Figure 1). The data contain observations for 344 unique nesting penguins, collected over three seasons (2007, 2008, 2009). Following exploratory data visualization, flipper lengths between male and female penguins are by two-sample t-tests using a significance level ($\alpha$) of 0.05 throughout. Differences between groups are described by Cohen's *d* effect size. The relationship between flipper length and body mass is explored by simple linear regression. All analyses are in R version 4.0.2 using RStudio version 1.3.1056. 
+
+
+**Figure 1.**  
+
+
+### 3. Preliminary results
+
+#### A. Annual juvenile hare trap counts
+
+```{r, include=FALSE, message=FALSE, Warning = FALSE}
+bonanza_table <- bonanza_hares %>% 
+  #get_dupes() %>% 
+  filter(age == "j") %>% 
+  mutate(date = mdy(date))  %>% 
+  mutate(month = month(date)) %>% 
+  mutate(day = day(date)) %>% 
+  mutate(year= year(date)) %>% 
+  group_by(year, grid) %>% 
+  summarize(count = n())
+
+
+
+
+```
+
+
+
+```{r , fig.align = "center"}
+ggplot(data = bonanza_table, aes(x = year, y = count)) +
+  geom_line(aes(color = grid)) +
+  facet_wrap(~grid)+
+  scale_color_manual(values = c("goldenrod2","cyan4","coral")) +
+  scale_x_continuous(limits=c(1998,2018),"Year") +
+  stat_summary(fun=mean, 
+               geom="point", 
+               shape=20, 
+               size=4, 
+               color="violet", 
+               fill="violet") +
+  theme_minimal() +
+
+  labs(x = "\nYear",
+       y = "Snowshoe hares count \n")
+```
+**Figure 2.** Juvenile hare weights (g) observations in 3 differents sites
+bonbs, bonmat and bonrip. Gold (bonbs), teal (bonmat) and coral (bonrip) points indicate individual observations for weight (g) of a juvenile hare. Box endpoints indicate the 25^th^ and 75^th^ percentile values; the black line and black point within the box indicate the median and mean value for each species, respectively. Data: Kielland et al. (2017). 
+
+#### B. Visualize juvenile hare weights
+
+
+```{r , fig.align = "center"}
+
+juvenile_hare <- bonanza_clean %>% 
+  filter(age == "j")
+
+ggplot(data = juvenile_hare, aes(x = grid, y = weight_g)) +
+  geom_boxplot(aes(color = grid),varwidth=T, fill="plum") +
+  scale_color_manual(values = c("goldenrod2","cyan4","turquoise")) +
+  stat_summary(fun=mean, 
+               geom="point", 
+               shape=20, 
+               size=4, 
+               color="purple", 
+               fill="purple") +
+  
+  theme_minimal() +
+  labs(x = "\n ",
+       y = "Weight (g)\n")
+```
+
+
+#### C. Juvenile weight comparison (male & female snowshoe hares)
+
+
+```{r}
+m_hare <- bonanza_clean %>% 
+  filter(age == "j", sex == "m") %>% 
+  pull(weight_g)
+
+f_hare <- bonanza_clean %>% 
+  filter(age == "j", sex == "f") %>% 
+  pull(weight_g)
+
+# Plot histograms & qq-plots to check assumptions
+hist(m_hare) # Looks normal
+qqnorm(m_hare) # Relatively linear
+hist(f_hare) # Possibly a bit negatively skewed
+qqnorm(f_hare) # Looks very linear
+
+# Overall: assumptions of normality hold, & sample size additionally >> Central Limit Theorem (means will be normally distributed). Two-sample t-test OK for means comparison! 
+
+# Run the t-test:
+hare_ttest <- t.test(m_hare, f_hare)
+
+# Get the tidy model results to call outputs in-line: 
+hare_ttest_tidy <- tidy(hare_ttest)
+
+# Get the means & SDs for each: 
+male_mean <- mean(m_hare)
+female_mean <- mean(f_hare, na.rm =TRUE)
+male_sd <- sd(m_hare)
+female_sd <- sd(f_hare, na.rm =TRUE)
+
+# Get the effect size: 
+hare_effsize <- cohen.d(m_hare, f_hare, na.rm = TRUE)
+
+
+
+```
+
+
+
+**Table 1.** Descriptive statistics (mean, standard deviation, and sample size) for juvenile weight comparison (male & female snowshoe hares). Data: Kielland et al. (2017)
+
+```{r descriptive_stats}
+
+hare_table <- bonanza_clean %>% 
+  summarize(
+    male_mean <- round(mean(m_hare),2),
+    female_mean <- round(mean(f_hare, na.rm =TRUE),2),
+    male_sd <- round(sd(m_hare),2),
+    female_sd <- round(sd(f_hare, na.rm =TRUE),2),
+    n = n()
+  )
+
+hare_table %>% 
+  kable(col.names = c("Male mean", "Female mean", "Male Standard deviation (g)","Female Standard deviation (g)", "Sample size")) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+
+On average, juvenile male hare weigh more than juvenile female hare (`r round(male_mean,2)` $\pm$ `r round(male_sd, 2)` and `r round(female_mean,2)` $\pm$ `r round(female_sd, 2)` g, respectively; mean $\pm$ 1 standard deviation). While the absolute difference in means is `r round(male_mean, 2) - round(female_mean, 2)` g (a `r round((male_mean - female_mean)/((male_mean + female_mean)/2)*100, 2)`% difference), the difference in means is significant (Welch's two-sample t-test: t(`r round(hare_ttest_tidy$parameter,2)`) = `r round(hare_ttest_tidy$statistic,2)`, p < 0.001), and the effect size is large (Cohen's *d* = `r round(hare_effsize$estimate,2)`).

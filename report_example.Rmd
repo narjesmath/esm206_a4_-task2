@@ -1,0 +1,178 @@
+---
+title: 'Palmer penguin sizes: exploratory report'
+author: "By: Teddy"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(effsize)
+library(broom)
+library(palmerpenguins)
+library(ggbeeswarm)
+library(kableExtra)
+```
+
+### 1. Overview
+
+This report provides an exploratory overview of differences in penguin sizes for three species of nesting adult penguins (gentoo, chinstrap and Adélie) observed on islands within the Palmer Archipelago from 2007 - 2009 (Gorman et al. 2014). Specifically, flipper lengths are compared across the three species, and the relationship(s) between flipper length and body mass explored. *Note: moving forward we'll work on introductions that motivate the work (e.g. "What's the problem & why does this matter?") but for now a cursory overview of what's included is fine...*
+
+### 2. Data and methods
+
+Penguin structural size measurements were collected and made available by Dr. Kristen Gorman and colleagues at the Palmer Station Long Term Ecological Research (LTER) network site in Palmer Archipelago, Antarctica (see map from Gorman et al. (2014) in Figure 1). The data contain observations for 344 unique nesting penguins, collected over three seasons (2007, 2008, 2009). Following exploratory data visualization, flipper lengths between male and female penguins are by two-sample t-tests using a significance level ($\alpha$) of 0.05 throughout. Differences between groups are described by Cohen's *d* effect size. The relationship between flipper length and body mass is explored by simple linear regression. All analyses are in R version 4.0.2 using RStudio version 1.3.1056. 
+
+![](gorman_map.png){width=70%}
+
+**Figure 1.** Map of Palmer penguins observations in Palmer Archipelago, Antarctica from Gorman et al. (2014). 
+
+
+### 3. Preliminary results
+
+#### A. Flipper length comparison and descriptive statistics
+
+```{r}
+penguin_table <- penguins %>% 
+  group_by(species) %>% 
+  summarize(
+    mean_flipper_length = round(mean(flipper_length_mm, na.rm = TRUE),2),
+    sd_flipper_length = round(sd(flipper_length_mm, na.rm = TRUE),2),
+    n = n()
+  )
+```
+
+
+Flipper lengths (all in millimeters) were compared across the three species; sex and island are not included as variables here, but should be investigated moving forward. As expected and consistent with other studies, gentoo penguins had the largest flippers of the three species (`r penguin_table[3,2]` $\pm$ `r penguin_table[3,3]` mm, *n* = `r penguin_table[3,4]`; mean $\pm$ 1 standard deviation), compared to chinstraps (`r penguin_table[2,2]` $\pm$ `r penguin_table[2,3]` mm, *n* = `r penguin_table[2,4]`) and Adélie penguins (`r penguin_table[1,2]` $\pm$ `r penguin_table[1,3]` mm, *n* = `r penguin_table[1,4]`)(Table 1, Figure 2). 
+
+**Table 1.** Descriptive statistics (mean, standard deviation, and sample size) for three species of adult nesting penguins. Data: Gorman et al. 2014. 
+
+```{r descriptive_stats}
+penguin_table %>% 
+  kable(col.names = c("Species", "Mean flipper length (mm)", "Standard deviation (mm)", "Sample size")) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+Distributions of flipper lengths for all three species were relatively normal and symmetric, with mean and median values very similar in each, and with no notable outliers (Figure 2). 
+
+```{r basic_flipper_plot, fig.align = "center"}
+ggplot(data = penguins, aes(x = species, y = flipper_length_mm)) +
+  geom_beeswarm(aes(color = species)) +
+  scale_color_manual(values = c("goldenrod2","cyan4","coral")) +
+  geom_boxplot(fill = NA, width = 0.2, outlier.color = NA) +
+  stat_summary(fun=mean, 
+               geom="point", 
+               shape=20, 
+               size=4, 
+               color="black", 
+               fill="black") +
+  theme_minimal() +
+  labs(x = "\nPenguin species",
+       y = "Flipper length (mm)\n")
+```
+**Figure 2.** Flipper length observations (mm) for nesting adults of the three penguin species (Adélie, chinstrap, and gentoo). Gold (Adélie), teal (chinstrap) and coral (gentoo) points indicate individual observations for flipper length (millimeters) of an adult nesting penguin. Box endpoints indicate the 25^th^ and 75^th^ percentile values; the black line and black point within the box indicate the median and mean value for each species, respectively. Data: Gorman et al. (2014). 
+
+#### B. Difference in flipper length between male and female gentoo penguins
+
+*Note: This doesn't fit with the rest of the report AT ALL, but is included so you have another example of reporting differences between two groups...*
+
+```{r gentoo_ttest, include = FALSE}
+# T-test code: 
+
+# Pull vectors of flipper lengths for male & female gentoo penguins
+
+m_gentoo <- penguins %>% 
+  filter(species == "Gentoo", sex == "male") %>% 
+  pull(flipper_length_mm)
+
+f_gentoo <- penguins %>% 
+  filter(species == "Gentoo", sex == "female") %>% 
+  pull(flipper_length_mm)
+
+# Plot histograms & qq-plots to check assumptions
+hist(m_gentoo) # Looks normal
+qqnorm(m_gentoo) # Relatively linear
+hist(f_gentoo) # Possibly a bit negatively skewed
+qqnorm(f_gentoo) # Looks very linear
+
+# Overall: assumptions of normality hold, & sample size additionally >> Central Limit Theorem (means will be normally distributed). Two-sample t-test OK for means comparison! 
+
+# Run the t-test:
+gentoo_ttest <- t.test(m_gentoo, f_gentoo)
+
+# Get the tidy model results to call outputs in-line: 
+gentoo_ttest_tidy <- tidy(gentoo_ttest)
+
+# Get the means & SDs for each: 
+male_mean <- mean(m_gentoo)
+female_mean <- mean(f_gentoo)
+male_sd <- sd(m_gentoo)
+female_sd <- sd(f_gentoo)
+
+# Get the effect size: 
+gentoo_effsize <- cohen.d(m_gentoo, f_gentoo)
+```
+
+On average, adult male gentoo penguins have longer flippers than adult female gentoos (`r round(male_mean,2)` $\pm$ `r round(male_sd, 2)` and `r round(female_mean,2)` $\pm$ `r round(female_sd, 2)` mm, respectively; mean $\pm$ 1 standard deviation). While the absolute difference in means is `r round(male_mean, 2) - round(female_mean, 2)` mm (a `r round((male_mean - female_mean)/((male_mean + female_mean)/2)*100, 2)`% difference), the difference in means is significant (Welch's two-sample t-test: t(`r round(gentoo_ttest_tidy$parameter,2)`) = `r round(gentoo_ttest_tidy$statistic,2)`, p < 0.001), and the effect size is large (Cohen's *d* = `r round(gentoo_effsize$estimate,2)`).
+
+
+#### C. Relationship between flipper length and body mass
+
+As a starting point, the relationship between flipper length and body mass was explored across the three species (i.e., ignoring species); further analysis is needed to compare the relationship between flipper length and body mass within each species, and should also include sex as an additional variable. 
+
+```{r penguin_model}
+# Do linear regression
+penguin_lm <- lm(body_mass_g ~ flipper_length_mm, data = penguins)
+
+# Get tidy versions of the model output to call later on in text
+penguin_lm_tidy <- tidy(penguin_lm)
+penguin_lm_glance <- glance(penguin_lm)
+
+# See model diagnostics:
+# plot(penguin_lm)
+
+# Get Pearson's r correlation
+penguin_cor <- cor.test(penguins$body_mass_g, penguins$flipper_length_mm)
+
+# Tidy version of correlation output:
+penguin_cor_tidy <- tidy(penguin_cor)
+```
+
+The relationship between penguin flipper length and body mass appears relatively linear, both across and within species (Figure 3). Simple linear regression revealed that flipper length significantly predicts penguin body mass (p < 0.001, R^2^ = `r round(penguin_lm_glance$r.squared,2)`) with an average slope of $\beta$ = `r round(penguin_lm_tidy$estimate[2], 2)` g mm^-1^ (i.e., for each one millimeter increase in flipper length we expect an average increase in body mass of `r round(penguin_lm_tidy$estimate[2], 2)` g). Flipper length and body mass are strongly, and significantly, positively correlated (Pearson's *r* = `r round(penguin_cor_tidy$estimate,2)`, p < 0.001). Diagnostic plots (not included) reveal normally distributed and homoscedastic residuals. 
+
+```{r penguin_model_graph}
+ggplot(data = penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
+  geom_point(aes(color = species, pch = species), size = 2) +
+  scale_color_manual(values = c("goldenrod2","cyan4","coral"), 
+                     name = "Penguin species") +
+  scale_shape_manual(values = c(16,17,18), 
+                     name = "Penguin species") +
+  geom_smooth(method = "lm", se = FALSE, color = "gray30") +
+  theme_minimal() +
+  labs(x = "\nFlipper length (mm)",
+       y = "Body mass (g)\n") +
+  theme(legend.position = c(0.15, 0.7))
+```
+
+**Figure 3.** Relationship between flipper length (mm) and body mass (g) for the three penguin species. Points indicate individual penguin measurements (Adélie = gold circles; chinstrap = teal triangles; gentoo = coral diamonds). Linear model summary: $\beta$~1~ = `r round(penguin_lm_tidy$estimate[2], 2)` g mm^-1^, p < 0.001, R^2^ = `r round(penguin_lm_glance$r.squared,2)`, Pearson's *r* = `r round(penguin_cor_tidy$estimate,2)`). Data: Gorman et al. (2014).
+
+## Summary
+
+Exploratory data analysis reveals the following initial findings: 
+
+- Gentoo penguins are the largest of the three species in both mean flipper length and body mass
+- Male gentoo penguins longer mean flipper length than female gentoos (the difference is significant, and the effect size is large)
+- Flipper length appears linearly related with body mass across all three penguin species; the relationship (by simple linear regression) is significant, with a slope (expected average increase in body mass with a 1 mm increase in flipper length) of `r round(penguin_lm_tidy$estimate[2], 2)` g mm^-1^.
+
+Next steps (*Note: you can add anything here you think would be interesting to follow-up with, that was not included in the instructions*): 
+
+- Compare flipper lengths statistically (one-way ANOVA), including penguin sex as a covariate
+- Multiple linear regression to understand the relationship between species, sex, flipper length and body mass 
+- Analysis of nesting pairs to explore size correlation
+
+## Citations
+
+Gorman KB, Williams TD, Fraser WR (2014). Ecological sexual dimorphism and environmental variability within a community of Antarctic penguins (genus Pygoscelis). PLoS ONE 9(3):e90081. https://doi.org/10.1371/journal.pone.0090081
+
+(...and any additional citations, professionally formatted...)
+
+
